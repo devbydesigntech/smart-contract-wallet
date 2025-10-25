@@ -1,76 +1,74 @@
-//SPDX-License-Identifier: MIT
-
-pragma solidity 0.8.16;
-
-// For testing purposes
-contract Consumer {
-    function getBalance() public view returns (uint) {
-        return address(this).balance;
-    }
-
-    function deposit() public payable {}
-}
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
 
 contract SmartContractWallet {
-
     address payable public owner;
+    uint256 public constant CONFIRMATIONS_REQUIRED = 3;
 
-    mapping(address => uint) public allowance;
-    mapping (address => bool) public isAllowedToSend;
+    struct SpendingLimit {
+        uint256 amount;
+        bool isAllowed;
+    }
+    mapping(address => SpendingLimit) public allowances;
 
-    mapping (address => bool) public guardians;
-    address payable nextOwner;
-    mapping (address => mapping(address => bool)) nextOwnerGuardianVotedBool;
-    uint guardiansResetCount;
-    uint public constant confirmationsFromGuardiansForReset = 3;
+    mapping(address => bool) public guardians;
+    address payable public nextOwner;
+    mapping(address => mapping(address => bool)) public hasVoted;
+    uint256 public guardiansResetCount;
+    uint256 public proposalDeadline;
 
     constructor() {
         owner = payable(msg.sender);
     }
 
-    function setGuardian(address _guardian, bool _isGuardian) public {
-        require(msg.sender == owner, "You are not the owner, aborting");
+    function setGuardian(address _guardian, bool _isGuardian) external {
+        require(msg.sender == owner, "Not owner");
         guardians[_guardian] = _isGuardian;
     }
 
-    function proposeNewOwner(address payable _newOwner) public {
-        require(guardians[msg.sender], "You are not a guardian of this wallet, aborting");
-        require(nextOwnerGuardianVotedBool[_newOwner][msg.sender] == false, "You already voted, aborting");
+    function proposeNewOwner(address payable _newOwner) external {
+        require(guardians[msg.sender], "Not guardian");
+        require(_newOwner != address(0), "Invalid address");
+        require(!hasVoted[_newOwner][msg.sender], "Already voted");
+
         if (_newOwner != nextOwner) {
             nextOwner = _newOwner;
             guardiansResetCount = 0;
+            proposalDeadline = block.timestamp + 1 weeks; // Reset after 1 week
         }
 
         guardiansResetCount++;
+        hasVoted[_newOwner][msg.sender] = true;
 
-        if (guardiansResetCount >= confirmationsFromGuardiansForReset) {
+        if (guardiansResetCount >= CONFIRMATIONS_REQUIRED) {
             owner = nextOwner;
             nextOwner = payable(address(0));
+            delete guardiansResetCount;
         }
     }
 
-    function setAllowance(address _for, uint _amount) public {
-        require(msg.sender == owner, "You are not the owner, aborting");
-        allowance[_for] = _amount;
+    function setAllowance(address _for, uint256 _amount) external {
+        require(msg.sender == owner, "Not owner");
+        allowances[_for] = SpendingLimit({
+            amount: _amount,
+            isAllowed: _amount > 0
+        });
+    }
 
-        if (_amount > 0) {
-            isAllowedToSend[_for] = true;
-        } else {
-            isAllowedToSend[_for] = false;
-        }
-     }
-
-    function transfer(address payable _to, uint _amount, bytes memory _payload) public returns(bytes memory) {
-        // require(msg.sender == owner, "Only owner can transfer funds");
-        if(msg.sender != owner) {
-            require(allowance[msg.sender] >= _amount, "You are trying to send more than you are allowed to, aborting");
-            require(isAllowedToSend[msg.sender], "You are not allowed to send anything from this smart contract, aborting");
-
-            allowance[msg.sender] -= _amount;
+    function transfer(
+        address payable _to,
+        uint256 _amount,
+        bytes memory _payload
+    ) external returns (bytes memory) {
+        if (msg.sender != owner) {
+            SpendingLimit storage limit = allowances[msg.sender];
+            require(limit.isAllowed, "Not allowed");
+            require(limit.amount >= _amount, "Insufficient allowance");
+            limit.amount -= _amount;
         }
 
         (bool success, bytes memory returnData) = _to.call{value: _amount}(_payload);
-        require(success, "Aborint, call was not successful");
+        require(success, "Transfer failed");
         return returnData;
     }
 

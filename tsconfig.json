@@ -25,7 +25,8 @@
     "typeRoots": [
       "./node_modules/@types",
       "./typechain-types"
-    ]
+    ],
+    "types": []
   },
   "include": [
     "next-env.d.ts",

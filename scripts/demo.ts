@@ -1,10 +1,13 @@
-import { WalletManager } from './wallet-manager';
-import { Web3WalletManager } from './web3-wallet-manager';
+const { WalletManager } = require('./wallet-manager');
+const { Web3WalletManager } = require('./web3-wallet-manager');
+
+// Helper to add delays between transactions
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function main() {
   // Example usage of both wallet managers
   const PROVIDER_URL = "http://localhost:8545";
-  const PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"; // Hardhat default
+  const PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"; // Hardhat account #1
   
   console.log("=== Smart Contract Wallet Demo ===\n");
 
@@ -15,33 +18,45 @@ async function main() {
     
     console.log("Deploying contract with Ethers...");
     const ethersAddress = await ethersWallet.deployContract();
-    console.log(`Contract deployed at: ${ethersAddress}\n`);
+    console.log(`✓ Contract deployed at: ${ethersAddress}\n`);
+
+    // Wait after deployment
+    await delay(500);
 
     // Get initial state
     const owner = await ethersWallet.getOwner();
     const balance = await ethersWallet.getBalance();
-    console.log(`Owner: ${owner}`);
-    console.log(`Balance: ${ethersWallet.formatEther(balance)} ETH\n`);
+    console.log(`✓ Owner: ${owner}`);
+    console.log(`✓ Balance: ${ethersWallet.formatEther(balance)} ETH\n`);
 
     // Fund the wallet
     console.log("Funding wallet with 1 ETH...");
-    await ethersWallet.fundWallet(ethersWallet.parseEther("1.0"));
+    const fundTx = await ethersWallet.fundWallet(ethersWallet.parseEther("1.0"));
+    await fundTx.wait();
+    await delay(500); // Wait for state to update
+    
     const newBalance = await ethersWallet.getBalance();
-    console.log(`New Balance: ${ethersWallet.formatEther(newBalance)} ETH\n`);
+    console.log(`✓ Funded! New Balance: ${ethersWallet.formatEther(newBalance)} ETH\n`);
 
     // Set a guardian
-    const guardianAddress = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"; // Hardhat account #1
-    console.log(`Setting guardian: ${guardianAddress}`);
-    await ethersWallet.setGuardian(guardianAddress, true);
+    const guardianAddress = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"; // Hardhat account #2
+    console.log(`Setting guardian: ${guardianAddress}...`);
+    const guardianTx = await ethersWallet.setGuardian(guardianAddress, true);
+    await guardianTx.wait();
+    await delay(500); // Wait for state to update
+    
     const isGuardian = await ethersWallet.isGuardian(guardianAddress);
-    console.log(`Is guardian: ${isGuardian}\n`);
+    console.log(`✓ Guardian set! Is guardian: ${isGuardian}\n`);
 
     // Set allowance
-    const allowedUser = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"; // Hardhat account #2
-    console.log(`Setting allowance for ${allowedUser}: 0.5 ETH`);
-    await ethersWallet.setAllowance(allowedUser, ethersWallet.parseEther("0.5"));
+    const allowedUser = "0x90F79bf6EB2c4f870365E785982E1f101E93b906"; // Hardhat account #3
+    console.log(`Setting allowance for ${allowedUser}: 0.5 ETH...`);
+    const allowanceTx = await ethersWallet.setAllowance(allowedUser, ethersWallet.parseEther("0.5"));
+    await allowanceTx.wait();
+    await delay(500); // Wait for state to update
+    
     const allowance = await ethersWallet.getAllowance(allowedUser);
-    console.log(`Allowance: ${ethersWallet.formatEther(allowance.amount)} ETH, Allowed: ${allowance.isAllowed}\n`);
+    console.log(`✓ Allowance set! Amount: ${ethersWallet.formatEther(allowance.amount)} ETH, Allowed: ${allowance.isAllowed}\n`);
 
     // Using Web3.js
     console.log("2. Using Web3.js Wallet Manager");
@@ -53,19 +68,15 @@ async function main() {
     // Get state using Web3
     const web3Owner = await web3Wallet.getOwner();
     const web3Balance = await web3Wallet.getBalance();
-    console.log(`Owner (Web3): ${web3Owner}`);
-    console.log(`Balance (Web3): ${web3Wallet.fromWei(web3Balance)} ETH\n`);
+    console.log(`✓ Owner (Web3): ${web3Owner}`);
+    console.log(`✓ Balance (Web3): ${web3Wallet.fromWei(web3Balance)} ETH\n`);
 
-    console.log("Demo completed successfully!");
+    console.log("✅ Demo completed successfully!");
 
-  } catch (error) {
-    console.error("Error in demo:", error);
+  } catch (error: any) {
+    console.error("❌ Error in demo:", error.message || error);
   }
 }
 
 // Allow this script to be run directly
-if (require.main === module) {
-  main().catch(console.error);
-}
-
-export { main };
+main().catch(console.error);

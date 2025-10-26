@@ -1,7 +1,7 @@
-import Web3 from 'web3';
+const { Web3 } = require('web3');
 
-export class Web3WalletManager {
-  private web3: Web3;
+class Web3WalletManager {
+  private web3: any;
   private account: string;
   private contract: any;
   private contractABI = [
@@ -228,3 +228,5 @@ export class Web3WalletManager {
     return this.web3.utils.toWei(amount, 'ether');
   }
 }
+
+module.exports = { Web3WalletManager };

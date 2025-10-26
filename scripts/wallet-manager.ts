@@ -1,9 +1,9 @@
-import { ethers } from "ethers";
-import { SmartContractWallet__factory } from "../typechain-types";
+const { ethers } = require("ethers");
+const { SmartContractWallet__factory } = require("../typechain-types/factories/SmartContractWallet__factory");
 
-export class WalletManager {
-  private provider: ethers.Provider;
-  private signer: ethers.Signer;
+class WalletManager {
+  private provider: any;
+  private signer: any;
   private contract: any;
 
   constructor(providerUrl: string, privateKey: string, contractAddress?: string) {
@@ -18,6 +18,10 @@ export class WalletManager {
   async deployContract(): Promise<string> {
     const factory = new SmartContractWallet__factory(this.signer);
     const contract = await factory.deploy();
+    const deployTx = contract.deploymentTransaction();
+    if (deployTx) {
+      await deployTx.wait(); // Wait for deployment transaction to be mined
+    }
     await contract.waitForDeployment();
     this.contract = contract;
     return await contract.getAddress();
@@ -27,22 +31,29 @@ export class WalletManager {
     this.contract = SmartContractWallet__factory.connect(address, this.signer);
   }
 
-  // Owner functions
-  async setGuardian(guardianAddress: string, isGuardian: boolean): Promise<ethers.ContractTransactionResponse> {
-    return await this.contract.setGuardian(guardianAddress, isGuardian);
+  // Helper to get fresh nonce
+  private async getFreshNonce(): Promise<number> {
+    return await this.provider.getTransactionCount(await this.signer.getAddress(), 'latest');
   }
 
-  async setAllowance(userAddress: string, amount: bigint): Promise<ethers.ContractTransactionResponse> {
-    return await this.contract.setAllowance(userAddress, amount);
+  // Owner functions
+  async setGuardian(guardianAddress: string, isGuardian: boolean): Promise<any> {
+    const nonce = await this.getFreshNonce();
+    return await this.contract.setGuardian(guardianAddress, isGuardian, { nonce });
+  }
+
+  async setAllowance(userAddress: string, amount: bigint): Promise<any> {
+    const nonce = await this.getFreshNonce();
+    return await this.contract.setAllowance(userAddress, amount, { nonce });
   }
 
   // Guardian functions
-  async proposeNewOwner(newOwnerAddress: string): Promise<ethers.ContractTransactionResponse> {
+  async proposeNewOwner(newOwnerAddress: string): Promise<any> {
     return await this.contract.proposeNewOwner(newOwnerAddress);
   }
 
   // Transfer functions
-  async transfer(to: string, amount: bigint, payload: string = "0x"): Promise<ethers.ContractTransactionResponse> {
+  async transfer(to: string, amount: bigint, payload: string = "0x"): Promise<any> {
     return await this.contract.transfer(to, amount, payload);
   }
 
@@ -80,10 +91,12 @@ export class WalletManager {
   }
 
   // Utility functions
-  async fundWallet(amount: bigint): Promise<ethers.ContractTransactionResponse> {
+  async fundWallet(amount: bigint): Promise<any> {
+    const nonce = await this.getFreshNonce();
     return await this.signer.sendTransaction({
       to: await this.contract.getAddress(),
-      value: amount
+      value: amount,
+      nonce
     });
   }
 
@@ -95,3 +108,5 @@ export class WalletManager {
     return ethers.parseEther(amount);
   }
 }
+
+module.exports = { WalletManager };

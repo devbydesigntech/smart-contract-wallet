@@ -119,7 +119,7 @@ smart-contract-wallet/
 ## Setup Instructions
 
 ### Prerequisites
-- Node.js 18+ 
+- Node.js 22+ 
 - npm or yarn
 - MetaMask or another Web3 wallet
 
